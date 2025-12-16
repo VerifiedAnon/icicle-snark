@@ -2,7 +2,7 @@ mod cache;
 mod conversions;
 mod file_wrapper;
 mod icicle_helper;
-mod proof_helper;
+pub mod proof_helper;
 mod zkey;
 
 use cache::VerificationKey;
@@ -22,7 +22,7 @@ pub type G2 = Affine<C2>;
 pub type ProjectiveG1 = Projective<C1>;
 pub type ProjectiveG2 = Projective<C2>;
 
-fn try_load_and_set_backend_device(device_type: &str) {
+pub fn try_load_and_set_backend_device(device_type: &str) {
     if device_type != "CPU" {
         icicle_runtime::runtime::load_backend_from_env_or_default().unwrap();
     }
