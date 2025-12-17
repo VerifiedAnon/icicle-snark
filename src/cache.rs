@@ -22,6 +22,12 @@ use crate::file_wrapper::FileWrapper;
 use crate::zkey::ZKey;
 use crate::{F, G1, G2};
 
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static DOMAIN_INITIALIZED: AtomicBool = AtomicBool::new(false);
+static DOMAIN_INIT_LOCK: Mutex<()> = Mutex::new(());
+
 const W: [&str; 30] = [
     "0x0000000000000000000000000000000000000000000000000000000000000001",
     "0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000",
@@ -242,14 +248,20 @@ impl CacheManager {
     pub fn get_cache(&mut self, key: &str) -> &mut ZKeyCache {
         let cache = self.cache.get_mut(key).unwrap();
 
-        if !self.last_key.is_empty() && !key.eq(&self.last_key) {
-            release_domain::<F>().unwrap();
+        // REMOVED logic that re-initializes based on `last_key` string comparison.
+        // Instead, we ensure domain is initialized EXACTLY ONCE globally.
+        if !DOMAIN_INITIALIZED.load(Ordering::Acquire) {
+            let _guard = DOMAIN_INIT_LOCK.lock().unwrap();
+            // Double-check locking pattern
+            if !DOMAIN_INITIALIZED.load(Ordering::Acquire) {
+                let domain: F = get_root_of_unity(cache.zkey.domain_size as u64);
+                let cfg = NTTInitDomainConfig::default();
+                initialize_domain(domain, &cfg).unwrap();
+                
+                DOMAIN_INITIALIZED.store(true, Ordering::Release);
+            }
         }
-
-        let domain: F = get_root_of_unity(cache.zkey.domain_size as u64);
-        let cfg = NTTInitDomainConfig::default();
-        initialize_domain(domain, &cfg).unwrap();
-
+        
         self.last_key = key.to_string();
 
         cache
